@@ -1,0 +1,28 @@
+{
+  "name": "squares",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n server,script,style -c red,blue,yellow \"yarn dev:server\" \"yarn dev:script\" \"yarn dev:style\"",
+    "dev:script": "node ./esbuild.js",
+    "dev:style": "postcss ./style/index.css -o ./dist/style.css -u postcss-import -u postcss-nested --watch --verbose",
+    "dev:server": "http-server ./dist/"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^5.57.1",
+    "@typescript-eslint/parser": "^5.57.1",
+    "concurrently": "^8.0.1",
+    "esbuild": "^0.17.15",
+    "esbuild-plugin-glsl": "^1.1.1",
+    "eslint": "^8.38.0",
+    "http-server": "^14.1.1",
+    "postcss": "^8.4.21",
+    "postcss-cli": "^10.1.0",
+    "postcss-import": "^15.1.0",
+    "postcss-nested": "^6.0.1",
+    "prettier": "^2.8.7",
+    "typescript": "^5.0.4"
+  }
+}
