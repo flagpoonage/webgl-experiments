@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -n server,script,style -c red,blue,yellow \"yarn dev:server\" \"yarn dev:script\" \"yarn dev:style\"",
+    "dev": "concurrently -n server,script,style -c red,blue,yellow \"npm run dev:server\" \"npm run dev:script\" \"npm run dev:style\"",
     "dev:script": "node ./esbuild.js",
     "dev:style": "postcss ./style/index.css -o ./dist/style.css -u postcss-import -u postcss-nested --watch --verbose",
     "dev:server": "http-server ./dist/"
