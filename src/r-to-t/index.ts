@@ -5,6 +5,8 @@ import pixelateVert from './shaders/pixelate.vert';
 import { configureProgram } from '../program';
 import { getCanvas } from '../canvas/element';
 
+const RAD_PER_DEGREE = Math.PI / 180;
+
 interface SceneData {
   gl: WebGL2RenderingContext;
   geoProgram: WebGLProgram;
@@ -21,7 +23,8 @@ interface SceneData {
     geometryVertexPosition: number;
     canvasVertexPosition: number;
     canvasTexturePosition: WebGLUniformLocation;
-    rotationVectorPosition: WebGLUniformLocation;
+    worldRotationMatrixPosition: WebGLUniformLocation;
+    // rotationVectorPosition: WebGLUniformLocation;
     geoResVectorPosition: WebGLUniformLocation;
     pixelResVectorPosition: WebGLUniformLocation;
     pixelSizePosition: WebGLUniformLocation;
@@ -39,7 +42,7 @@ export function runRenderToTexture() {
       state.pixelation += 2;
     } else if (e.key === 'ArrowDown') {
       state.pixelation -= 2;
-      state.pixelation = state.pixelation < 3 ? 3 : state.pixelation;
+      state.pixelation = state.pixelation < 1 ? 1 : state.pixelation;
     }
   });
   const cx = getCanvas();
@@ -85,6 +88,11 @@ export function runRenderToTexture() {
     'aVertexPosition'
   );
 
+  const worldRotationMatrixPosition = gl.getUniformLocation(
+    geoProgram,
+    'u_worldMatrix'
+  );
+
   const canvasVertexPosition = gl.getAttribLocation(
     pixelateProgram,
     'aVertexPosition'
@@ -95,10 +103,10 @@ export function runRenderToTexture() {
     'u_texture'
   );
 
-  const rotationVectorPosition = gl.getUniformLocation(
-    geoProgram,
-    'u_rotation'
-  );
+  // const rotationVectorPosition = gl.getUniformLocation(
+  //   geoProgram,
+  //   'u_rotation'
+  // );
 
   const pixelResVectorPosition = gl.getUniformLocation(
     pixelateProgram,
@@ -114,7 +122,8 @@ export function runRenderToTexture() {
 
   if (
     !canvasTexturePosition ||
-    !rotationVectorPosition ||
+    // !rotationVectorPosition ||
+    !worldRotationMatrixPosition ||
     !pixelResVectorPosition ||
     !geoResVectorPosition ||
     !pixelSizePosition
@@ -143,7 +152,8 @@ export function runRenderToTexture() {
       canvasTexturePosition,
       geometryVertexPosition,
       canvasVertexPosition,
-      rotationVectorPosition,
+      worldRotationMatrixPosition,
+      // rotationVectorPosition,
       pixelSizePosition,
       pixelResVectorPosition,
       geoResVectorPosition,
@@ -206,6 +216,35 @@ function createFramebuffer(gl: WebGL2RenderingContext, texture: WebGLTexture) {
   return fb;
 }
 
+function createZRotationMatrix(angleInDegrees: number) {
+  const radians = angleInDegrees * RAD_PER_DEGREE;
+
+  return [
+    Math.cos(radians),
+    -Math.sin(radians),
+    0,
+    0,
+    Math.sin(radians),
+    Math.cos(radians),
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+  ];
+
+  // var cos = Math.cos;
+  // var sin = Math.sin;
+
+  // return [
+  // ];
+}
+
 export function createGeometryBuffer(gl: WebGL2RenderingContext) {
   // Create a buffer and put three 2d clip space points in it
   const positionBuffer = gl.createBuffer();
@@ -265,7 +304,7 @@ export function loop() {
   const next_time = current_time - scene.start_time;
   scene.start_time = current_time;
 
-  const DEGREES_PER_SECOND = 20;
+  const DEGREES_PER_SECOND = 50;
   const next_time_seconds = next_time * 0.001;
 
   const delta_angle = next_time_seconds * DEGREES_PER_SECOND;
@@ -279,6 +318,9 @@ export function loop() {
 }
 
 export function drawCanvas(scene: SceneData) {
+  if (state.pixelation < 3) {
+    return;
+  }
   const { gl } = scene;
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.bindTexture(gl.TEXTURE_2D, scene.geoTexture);
@@ -313,8 +355,11 @@ export function drawCanvas(scene: SceneData) {
 
 export function drawTriangle(scene: SceneData) {
   const { gl, geoProgram } = scene;
-  gl.bindFramebuffer(gl.FRAMEBUFFER, scene.geoFramebuffer);
-  // gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  if (state.pixelation >= 3) {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, scene.geoFramebuffer);
+  } else {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
   gl.viewport(0, 0, scene.width, scene.height);
   gl.clearColor(0, 0, 0, 1); // clear to blue
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -329,11 +374,19 @@ export function drawTriangle(scene: SceneData) {
     0,
     0
   );
-  const radians = (scene.current_angle * Math.PI) / 180.0;
+  // const radians = (scene.current_angle * Math.PI) / 180.0;
 
-  gl.uniform2fv(
-    scene.attribs.rotationVectorPosition,
-    new Float32Array([Math.sin(radians), Math.cos(radians)])
+  // gl.uniform2fv(
+  //   scene.attribs.rotationVectorPosition,
+  //   new Float32Array([Math.sin(radians), Math.cos(radians)])
+  // );
+
+  gl.uniformMatrix4fv(
+    scene.attribs.worldRotationMatrixPosition,
+    false,
+    new Float32Array(createZRotationMatrix(45)),
+    0,
+    16
   );
   gl.uniform2fv(
     scene.attribs.geoResVectorPosition,

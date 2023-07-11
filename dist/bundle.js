@@ -1,8 +1,8 @@
 // src/r-to-t/shaders/screen-point.vert
-var screen_point_default = "attribute vec2 aVertexPosition;\n\nuniform vec2 u_rotation;\n\nvoid main() {\n  vec2 rotatedPosition = vec2(\n    aVertexPosition.x * u_rotation.y +\n          aVertexPosition.y * u_rotation.x,\n    aVertexPosition.y * u_rotation.y -\n          aVertexPosition.x * u_rotation.x\n  );\n\n  gl_Position = vec4(rotatedPosition, 0.0, 1.0);\n  // gl_Position = vec4(aVertexPosition, 0.0, 1.0);\n}";
+var screen_point_default = "attribute vec2 aVertexPosition;\n\nuniform vec4 u_worldMatrix;\n// uniform vec2 u_rotation;\n\nvoid main() {\n\n  gl_Position = vec4(aVertexPosition, 0.5, 1.0) * u_worldMatrix;\n\n  // vec2 rotatedPosition = vec2(\n  //   aVertexPosition.x * u_rotation.y +\n  //         aVertexPosition.y * u_rotation.x,\n  //   aVertexPosition.y * u_rotation.y -\n  //         aVertexPosition.x * u_rotation.x\n  // );\n\n  // gl_Position = vec4(aVertexPosition, 0.5, 1.0);\n  // gl_Position = vec4(aVertexPosition, 0.0, 1.0);\n}";
 
 // src/r-to-t/shaders/screen-point.frag
-var screen_point_default2 = "\n#ifdef GL_ES\nprecision highp float;\n#endif\n\nuniform vec2 u_rotation;\nuniform vec2 u_resolution;\n\nvoid main() {\n  float x_step = 1.0 / u_resolution.x;\n  float y_step = 1.0 / u_resolution.y;\n\n  float rgb_step = 1.0 / 255.0;\n\ngl_FragColor = vec4(\n  x_step * gl_FragCoord.x, \n  y_step * gl_FragCoord.y, \n  max(x_step * gl_FragCoord.x, y_step * gl_FragCoord.y),\n  1.0\n);\n\n  // gl_FragColor = vec4(\n  //   181.0 * rgb_step,\n  //   0.0,\n  //   1381.0 * rgb_step,\n  //   1.0);\n} ";
+var screen_point_default2 = "\n#ifdef GL_ES\nprecision highp float;\n#endif\n\n// uniform vec2 u_rotation;\nuniform vec2 u_resolution;\n\nvoid main() {\n  float x_step = 1.0 / u_resolution.x;\n  float y_step = 1.0 / u_resolution.y;\n\n  float rgb_step = 1.0 / 255.0;\n\ngl_FragColor = vec4(\n  x_step * gl_FragCoord.x, \n  y_step * gl_FragCoord.y, \n  max(x_step * gl_FragCoord.x, y_step * gl_FragCoord.y),\n  1.0\n);\n\n  // gl_FragColor = vec4(\n  //   181.0 * rgb_step,\n  //   0.0,\n  //   1381.0 * rgb_step,\n  //   1.0);\n} ";
 
 // src/r-to-t/shaders/pixelate.frag
 var pixelate_default = "\n#ifdef GL_ES\nprecision highp float;\n#endif\n\n// The texture.\nuniform sampler2D u_texture;\nuniform vec2 u_resolution;\nuniform float u_pixel;\n\nvoid main() {\n  float mid_step = u_pixel * 0.5;\n  float trans_x = 1.0 / u_resolution.x;\n  float trans_y = 1.0 / u_resolution.y;\n  \n  float nearest_x_pixel = (floor(gl_FragCoord.x / u_pixel) * u_pixel) + mid_step;\n  float nearest_y_pixel = (floor(gl_FragCoord.y / u_pixel) * u_pixel) + mid_step;\n\n  float alpha = min(\n    step(1.0, mod(gl_FragCoord.x, u_pixel)), \n    step(1.0, mod(gl_FragCoord.y, u_pixel)));\n\n  gl_FragColor = texture2D(u_texture, vec2(\n    nearest_x_pixel * trans_x, \n    nearest_y_pixel * trans_y)) * alpha;\n}";
@@ -57,6 +57,7 @@ function getCanvas() {
 }
 
 // src/r-to-t/index.ts
+var RAD_PER_DEGREE = Math.PI / 180;
 var state = {
   scene: null,
   pixelation: 3
@@ -67,7 +68,7 @@ function runRenderToTexture() {
       state.pixelation += 2;
     } else if (e.key === "ArrowDown") {
       state.pixelation -= 2;
-      state.pixelation = state.pixelation < 3 ? 3 : state.pixelation;
+      state.pixelation = state.pixelation < 1 ? 1 : state.pixelation;
     }
   });
   const cx = getCanvas();
@@ -98,6 +99,10 @@ function runRenderToTexture() {
     geoProgram,
     "aVertexPosition"
   );
+  const worldRotationMatrixPosition = gl.getUniformLocation(
+    geoProgram,
+    "u_worldMatrix"
+  );
   const canvasVertexPosition = gl.getAttribLocation(
     pixelateProgram,
     "aVertexPosition"
@@ -105,10 +110,6 @@ function runRenderToTexture() {
   const canvasTexturePosition = gl.getUniformLocation(
     pixelateProgram,
     "u_texture"
-  );
-  const rotationVectorPosition = gl.getUniformLocation(
-    geoProgram,
-    "u_rotation"
   );
   const pixelResVectorPosition = gl.getUniformLocation(
     pixelateProgram,
@@ -119,7 +120,8 @@ function runRenderToTexture() {
     "u_resolution"
   );
   const pixelSizePosition = gl.getUniformLocation(pixelateProgram, "u_pixel");
-  if (!canvasTexturePosition || !rotationVectorPosition || !pixelResVectorPosition || !geoResVectorPosition || !pixelSizePosition) {
+  if (!canvasTexturePosition || // !rotationVectorPosition ||
+  !worldRotationMatrixPosition || !pixelResVectorPosition || !geoResVectorPosition || !pixelSizePosition) {
     throw new Error("Missing location information");
   }
   const canvasBuffer = createCanvasBuffer(gl);
@@ -142,7 +144,8 @@ function runRenderToTexture() {
       canvasTexturePosition,
       geometryVertexPosition,
       canvasVertexPosition,
-      rotationVectorPosition,
+      worldRotationMatrixPosition,
+      // rotationVectorPosition,
       pixelSizePosition,
       pixelResVectorPosition,
       geoResVectorPosition
@@ -187,6 +190,27 @@ function createFramebuffer(gl, texture) {
     0
   );
   return fb;
+}
+function createZRotationMatrix(angleInDegrees) {
+  const radians = angleInDegrees * RAD_PER_DEGREE;
+  return [
+    Math.cos(radians),
+    -Math.sin(radians),
+    0,
+    0,
+    Math.sin(radians),
+    Math.cos(radians),
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1
+  ];
 }
 function createGeometryBuffer(gl) {
   const positionBuffer = gl.createBuffer();
@@ -244,7 +268,7 @@ function loop() {
   }
   const next_time = current_time - scene.start_time;
   scene.start_time = current_time;
-  const DEGREES_PER_SECOND = 20;
+  const DEGREES_PER_SECOND = 50;
   const next_time_seconds = next_time * 1e-3;
   const delta_angle = next_time_seconds * DEGREES_PER_SECOND;
   const new_angle = (scene.current_angle + delta_angle) % 360;
@@ -254,6 +278,9 @@ function loop() {
   requestAnimationFrame(loop);
 }
 function drawCanvas(scene) {
+  if (state.pixelation < 3) {
+    return;
+  }
   const { gl } = scene;
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.bindTexture(gl.TEXTURE_2D, scene.geoTexture);
@@ -283,7 +310,11 @@ function drawCanvas(scene) {
 }
 function drawTriangle(scene) {
   const { gl, geoProgram } = scene;
-  gl.bindFramebuffer(gl.FRAMEBUFFER, scene.geoFramebuffer);
+  if (state.pixelation >= 3) {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, scene.geoFramebuffer);
+  } else {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
   gl.viewport(0, 0, scene.width, scene.height);
   gl.clearColor(0, 0, 0, 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -298,10 +329,12 @@ function drawTriangle(scene) {
     0,
     0
   );
-  const radians = scene.current_angle * Math.PI / 180;
-  gl.uniform2fv(
-    scene.attribs.rotationVectorPosition,
-    new Float32Array([Math.sin(radians), Math.cos(radians)])
+  gl.uniformMatrix4fv(
+    scene.attribs.worldRotationMatrixPosition,
+    false,
+    new Float32Array(createZRotationMatrix(45)),
+    0,
+    16
   );
   gl.uniform2fv(
     scene.attribs.geoResVectorPosition,

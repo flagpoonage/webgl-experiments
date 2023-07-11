@@ -3,7 +3,7 @@
 precision highp float;
 #endif
 
-uniform vec2 u_rotation;
+// uniform vec2 u_rotation;
 uniform vec2 u_resolution;
 
 void main() {
